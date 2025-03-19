@@ -1,9 +1,12 @@
 import java.io.*;
 import java.net.*;
+import java.util.Date;
+import java.text.SimpleDateFormat;
 
 public class SimpleHTTPServer {
     private static final int PORT = 8080;
     private static final String WEB_ROOT = "www";
+    private static final String LOG_FILE = "server.log";
 
     public static void main(String[] args) {
 
@@ -42,7 +45,16 @@ public class SimpleHTTPServer {
             if (requestedFile.equals("/")) {
                 requestedFile = "/index.html";
             }
-
+            if (requestedFile.startsWith("/hello")) {
+                String name = requestedFile.contains("?name=") ? requestedFile.split("=")[1] : "Guest";
+                String dynamicResponse = "<html><body><h1>Hello, " + name + "!</h1></body></html>";
+                String header = "HTTP/1.1 200 OK\r\n" +
+                        "Content-Type: text/html\r\n" +
+                        "Content-Length: " + dynamicResponse.length() + "\r\n\r\n";
+                out.write(header.getBytes());
+                out.write(dynamicResponse.getBytes());
+                out.flush();
+            }
             // Serve static files
             File file = new File(WEB_ROOT + requestedFile);
             if (file.exists() && !file.isDirectory()) {
@@ -50,6 +62,7 @@ public class SimpleHTTPServer {
             } else {
                 sendNotFound(out);
             }
+            logRequest(clientSocket.getInetAddress().toString(), requestedFile);
 
             // // Send HTTP response
             // String httpResponse = "HTTP/1.1 200 OK\r\n" +
@@ -71,6 +84,7 @@ public class SimpleHTTPServer {
 
     private static void sendResponse(OutputStream out, String status, File file) throws IOException {
         byte[] fileContent = readFile(file);
+        String contentType = getMimeType(file.getName());
         String header = status + "\r\n" +
                 "Content-Type: text/html\r\n" +
                 "Content-Length: " + fileContent.length + "\r\n" +
@@ -96,4 +110,31 @@ public class SimpleHTTPServer {
         fis.close();
         return data;
     }
+
+    private static void logRequest(String clientIP, String requestedFile) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("server.log", true))) {
+            String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+            writer.write(timestamp + " - " + clientIP + " requested " + requestedFile + "\n");
+            writer.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static String getMimeType(String fileName) {
+        if (fileName.endsWith(".html"))
+            return "text/html";
+        if (fileName.endsWith(".css"))
+            return "text/css";
+        if (fileName.endsWith(".js"))
+            return "application/javascript";
+        if (fileName.endsWith(".png"))
+            return "image/png";
+        if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg"))
+            return "image/jpeg";
+        if (fileName.endsWith(".gif"))
+            return "image/gif";
+        return "application/octet-stream"; // Default binary type
+    }
+
 }
